@@ -1,0 +1,14 @@
+# Normalize line endings — store as LF in the repo so the codebase is consistent
+# across Windows / macOS / Linux collaborators and CI.
+* text=auto eol=lf
+
+# Binary assets — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.pdf binary
