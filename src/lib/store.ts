@@ -1,6 +1,5 @@
 import "server-only";
-import { promises as fs } from "fs";
-import path from "path";
+import { readDoc, writeDoc } from "@/lib/storage";
 import {
   events as seedEvents,
   clients as seedClients,
@@ -24,29 +23,17 @@ export async function listTasksForEvent(eventId: string): Promise<Task[]> {
 }
 
 /**
- * Zero-setup persistence: JSON files under `.data/` at the project root.
- * Seeded from the mock data on first use. Good enough to make the admin CRUD
- * real and persistent in local/dev. (Swap for Firestore for production.)
+ * Persistence is delegated to the storage adapter (src/lib/storage.ts): KV in
+ * production (Vercel's filesystem is read-only), local `.data/<name>.json` files
+ * in dev. Each collection is one JSON document; the seed is returned (not
+ * persisted) until the first write.
  */
-const DATA_DIR = path.join(process.cwd(), ".data");
-
 async function readCollection<T>(name: string, seed: T[]): Promise<T[]> {
-  try {
-    const raw = await fs.readFile(path.join(DATA_DIR, `${name}.json`), "utf8");
-    return JSON.parse(raw) as T[];
-  } catch {
-    await writeCollection(name, seed);
-    return seed;
-  }
+  return readDoc<T[]>(name, seed);
 }
 
 async function writeCollection<T>(name: string, data: T[]): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(
-    path.join(DATA_DIR, `${name}.json`),
-    JSON.stringify(data, null, 2),
-    "utf8",
-  );
+  return writeDoc<T[]>(name, data);
 }
 
 function newId(prefix: string) {
@@ -223,7 +210,8 @@ export type ClientDocument = {
   type: "contract" | "invoice" | "other";
   size: string;
   date: string;       // ISO date
-  filename: string;   // stored as .data/uploads/{filename}
+  filename: string;   // local-fs name (dev): .data/uploads/{filename}
+  blobUrl?: string;   // Vercel Blob URL (prod) — fetched server-side behind auth
   mimeType: string;
 };
 
@@ -468,17 +456,12 @@ export const DEFAULT_SETTINGS: StudioSettings = {
 };
 
 export async function getSettings(): Promise<StudioSettings> {
-  try {
-    const raw = await fs.readFile(path.join(DATA_DIR, "settings.json"), "utf8");
-    const saved = JSON.parse(raw) as Partial<StudioSettings>;
-    return {
-      profile: { ...DEFAULT_SETTINGS.profile, ...saved.profile },
-      branding: { ...DEFAULT_SETTINGS.branding, ...saved.branding },
-      notifications: { ...DEFAULT_SETTINGS.notifications, ...saved.notifications },
-    };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
+  const saved = await readDoc<Partial<StudioSettings>>("settings", {});
+  return {
+    profile: { ...DEFAULT_SETTINGS.profile, ...saved.profile },
+    branding: { ...DEFAULT_SETTINGS.branding, ...saved.branding },
+    notifications: { ...DEFAULT_SETTINGS.notifications, ...saved.notifications },
+  };
 }
 
 export async function saveSettings(patch: Partial<StudioSettings>): Promise<StudioSettings> {
@@ -488,11 +471,6 @@ export async function saveSettings(patch: Partial<StudioSettings>): Promise<Stud
     branding: { ...cur.branding, ...patch.branding },
     notifications: { ...cur.notifications, ...patch.notifications },
   };
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(
-    path.join(DATA_DIR, "settings.json"),
-    JSON.stringify(next, null, 2),
-    "utf8",
-  );
+  await writeDoc("settings", next);
   return next;
 }

@@ -35,6 +35,7 @@ const COLUMNS = [
     links: [
       { label: "About", href: "/about" },
       { label: "Portfolio", href: "/portfolio" },
+      { label: "Blog", href: "/blog" },
       { label: "Process", href: "/process" },
       { label: "Packages", href: "/packages" },
     ],

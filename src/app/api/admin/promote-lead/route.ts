@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import {
   setClientAssignment,
   setClientPortalData,
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
-  let body: {
+  const parsed = await readJson<{
     leadId: string;
     email: string;
     name: string;
@@ -27,12 +28,9 @@ export async function POST(req: Request) {
     location: string;
     guestCount?: string;
     budget?: string;
-  };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  }>(req, 16 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   const { leadId, email, name, eventName, eventType, eventDate, venue, location } = body;
   if (!leadId || !email || !name || !eventName || !eventType || !eventDate || !venue || !location) {

@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import {
   getClientPortalData,
   setClientPortalData,
   getClientAssignment,
   seedClientPortalData,
   type ClientPortalData,
-  type ClientBudgetLine,
   type ClientMilestone,
 } from "@/lib/store";
 
@@ -36,14 +36,21 @@ export async function POST(req: NextRequest) {
   if (!(await requireAdmin()))
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
 
-  let body: { email?: string; budget?: ClientPortalData["budget"]; milestones?: ClientMilestone[] };
-  try { body = await req.json(); } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
-
-  const { email, budget, milestones } = body;
+  const parsed = await readJson<{
+    email?: string;
+    budget?: ClientPortalData["budget"];
+    milestones?: ClientMilestone[];
+  }>(req, 128 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const { email, budget, milestones } = parsed.data;
   if (!email)
     return NextResponse.json({ ok: false, error: "email required" }, { status: 400 });
+  // Bound array sizes so a single write can't bloat the portal store (re-read &
+  // re-serialised on every portal access).
+  if (milestones && milestones.length > 100)
+    return NextResponse.json({ ok: false, error: "Too many milestones (max 100)." }, { status: 400 });
+  if (budget?.lines && budget.lines.length > 100)
+    return NextResponse.json({ ok: false, error: "Too many budget lines (max 100)." }, { status: 400 });
 
   // Load existing or seed fresh
   let existing = await getClientPortalData(email);

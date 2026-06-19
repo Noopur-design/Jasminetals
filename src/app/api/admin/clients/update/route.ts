@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import { getClientAssignment, setClientAssignment } from "@/lib/store";
 import type { ClientAssignment } from "@/lib/store";
 
@@ -10,12 +11,9 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
-  let body: Partial<ClientAssignment> & { email?: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const parsed = await readJson<Partial<ClientAssignment> & { email?: string }>(req, 32 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   const { email, ...patch } = body;
   if (!email) {

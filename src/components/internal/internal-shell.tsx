@@ -13,6 +13,7 @@ import {
   UserCog,
   KeyRound,
   ScrollText,
+  BookOpen,
   Settings,
   Search,
   Plus,
@@ -53,6 +54,7 @@ const NAV: NavItem[] = [
   // Owner-admin only — sub-users never see or manage these.
   { href: "/internal/team", label: "Team", icon: UserCog, adminOnly: true },
   { href: "/internal/team-accounts", label: "Staff logins", icon: KeyRound, adminOnly: true },
+  { href: "/internal/blog", label: "Blog", icon: BookOpen, adminOnly: true },
   { href: "/internal/audit", label: "Audit Log", icon: ScrollText, adminOnly: true },
   { href: "/internal/settings", label: "Settings", icon: Settings, adminOnly: true },
 ];

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import { adminAuth, adminDb, isAdminConfigured } from "@/lib/firebase/admin";
 import type { Permissions } from "@/lib/permissions";
 
@@ -25,13 +26,9 @@ export async function PATCH(
   if (notReady) return notReady;
 
   const { uid } = await params;
-  let permissions: Permissions | undefined;
-  let status: "active" | "suspended" | undefined;
-  try {
-    ({ permissions, status } = await request.json());
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const parsed = await readJson<{ permissions?: Permissions; status?: "active" | "suspended" }>(request, 16 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const { permissions, status } = parsed.data;
 
   if (status === "suspended") {
     // Strip the team role entirely → instantly loses all admin access.

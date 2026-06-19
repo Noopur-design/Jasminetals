@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import { listEvents, createEvent } from "@/lib/store";
 import { scopeEvents } from "@/lib/scope";
 import type { EventStatus } from "@/lib/internal-data";
@@ -20,12 +21,9 @@ export async function POST(request: Request) {
   if (!(await requirePermission("events", "create"))) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const parsed = await readJson<Record<string, unknown>>(request, 32 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   if (!body.client || !body.date) {
     return NextResponse.json(
       { ok: false, error: "Client and date are required." },

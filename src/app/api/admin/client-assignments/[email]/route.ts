@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import {
   getClientAssignment,
   setClientAssignment,
@@ -21,12 +22,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   }
 
-  let patch: Record<string, unknown>;
-  try {
-    patch = await req.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const parsed = await readJson<Record<string, unknown>>(req, 32 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const patch = parsed.data;
 
   const { email: _ignored, ...safe } = patch;
   void _ignored;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import { getSettings, saveSettings, type StudioSettings } from "@/lib/store";
 
 // GET /api/admin/settings → load studio settings
@@ -15,12 +16,8 @@ export async function PUT(request: Request) {
   if (!(await requireAdmin())) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
-  let body: Partial<StudioSettings>;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
-  const settings = await saveSettings(body);
+  const parsed = await readJson<Partial<StudioSettings>>(request, 64 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const settings = await saveSettings(parsed.data);
   return NextResponse.json({ ok: true, settings });
 }

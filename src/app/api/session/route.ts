@@ -11,15 +11,17 @@ import {
 } from "@/lib/auth";
 import { FULL_PERMISSIONS, type Permissions } from "@/lib/permissions";
 import { getClientAssignment } from "@/lib/store";
+import { enforceRateLimit, readJson } from "@/lib/http";
+import { LIMITS } from "@/lib/rate-limit";
 
 // POST /api/session  → exchange a Firebase ID token for our session cookie.
 export async function POST(request: NextRequest) {
-  let idToken: string | undefined;
-  try {
-    ({ idToken } = await request.json());
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const limited = await enforceRateLimit(request, "session", LIMITS.auth);
+  if (limited) return limited;
+
+  const parsed = await readJson<{ idToken?: string }>(request, 8 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const { idToken } = parsed.data;
   if (!idToken) {
     return NextResponse.json({ ok: false, error: "Missing token" }, { status: 400 });
   }
@@ -54,9 +56,13 @@ export async function POST(request: NextRequest) {
   } else if (identity.claimRole === "client") {
     role = "client";
   } else {
-    // Check if admin has promoted this lead to a client via the panel.
+    // Admin promoted this email to a client portal. Grant it ONLY to a verified
+    // owner of the address — otherwise anyone who self-signs-up with a client's
+    // assigned email would silently inherit that client's portal and identity.
+    // Google sign-ins are auto-verified; email/password users must confirm via
+    // the verification link first (until then they stay a "lead", no portal).
     const assignment = await getClientAssignment(identity.email);
-    if (assignment) role = "client";
+    if (assignment && identity.emailVerified) role = "client";
   }
 
   const token = await createSessionToken({

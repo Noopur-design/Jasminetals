@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SessionUser } from "@/lib/auth";
 import { requirePermission } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import {
   isCollection,
   updateInCollection,
@@ -52,11 +53,17 @@ export async function PATCH(
   if (await taskOutOfScope(collection, id, session)) {
     return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   }
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
+  const parsed = await readJson<Record<string, unknown>>(req, 64 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  // Prevent scope escape via reassignment: taskOutOfScope above only validates the
+  // task's CURRENT eventId, so a non-admin must not be able to move a task onto an
+  // event/portal they can't see. Re-check the *incoming* eventId when present.
+  if (collection === "tasks" && session.role !== "admin" && body.eventId !== undefined) {
+    const [events, portals] = await Promise.all([listEvents(), listClientAssignments()]);
+    if (!canSeeTaskEventId(String(body.eventId), events, portals, session)) {
+      return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    }
   }
   const item = await updateInCollection(collection, id, body);
   if (!item) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });

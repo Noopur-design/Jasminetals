@@ -3,7 +3,8 @@ import { promises as fs } from "fs";
 import path from "path";
 import { cookies } from "next/headers";
 import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth";
-import { getClientPortalData } from "@/lib/store";
+import { getClientPortalData, listClientPortalDataAll, type ClientDocument } from "@/lib/store";
+import { isInsideDir } from "@/lib/http";
 
 const UPLOADS_DIR = path.join(process.cwd(), ".data", "uploads");
 
@@ -20,25 +21,46 @@ export async function GET(
 
   const { id } = await params;
 
-  // Clients can only download their own documents; admins can download any
-  let portalData = null;
+  // Resolve the REAL document record. A client only ever sees their own; an admin
+  // may download any — found by scanning all portals (no fabricated record).
+  let doc: ClientDocument | undefined;
   if (session.role === "client" && session.email) {
-    portalData = await getClientPortalData(session.email);
+    const portal = await getClientPortalData(session.email);
+    doc = portal?.documents.find((d) => d.id === id);
   } else if (session.role === "admin") {
-    // Admins can access any file — we skip the ownership check
-    portalData = { documents: [{ id, filename: `${id}.pdf`, mimeType: "application/octet-stream", name: id }] };
+    for (const p of await listClientPortalDataAll()) {
+      const found = p.documents?.find((d) => d.id === id);
+      if (found) {
+        doc = found;
+        break;
+      }
+    }
   }
-
-  if (!portalData) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  const doc = portalData.documents.find((d: { id: string }) => d.id === id);
   if (!doc) {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
 
-  const filePath = path.join(UPLOADS_DIR, (doc as { filename: string }).filename);
+  const mimeType = doc.mimeType ?? "application/octet-stream";
+  const disposition = `attachment; filename*=UTF-8''${encodeURIComponent(doc.name)}`;
+
+  // Production: the file lives in Vercel Blob. The caller is already authorised,
+  // so fetch it server-side and stream it — the blob URL never reaches the client.
+  if (doc.blobUrl) {
+    const upstream = await fetch(doc.blobUrl);
+    if (!upstream.ok || !upstream.body) {
+      return NextResponse.json({ error: "File not found" }, { status: 404 });
+    }
+    return new NextResponse(upstream.body, {
+      headers: { "Content-Type": mimeType, "Content-Disposition": disposition },
+    });
+  }
+
+  // Local dev: read from .data/uploads. `filename` is a server-generated,
+  // extension-sanitised token; still containment-check before reading.
+  const filePath = path.join(UPLOADS_DIR, doc.filename);
+  if (!isInsideDir(UPLOADS_DIR, filePath)) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   let buffer: Buffer;
   try {
     buffer = await fs.readFile(filePath);
@@ -46,15 +68,10 @@ export async function GET(
     return NextResponse.json({ error: "File not found" }, { status: 404 });
   }
 
-  const mimeType = (doc as { mimeType: string }).mimeType ?? "application/octet-stream";
-  const name = encodeURIComponent((doc as { name: string }).name);
-
-  // Wrap in a plain Uint8Array — Node's Buffer isn't a valid BodyInit under the
-  // strict lib types, but a Uint8Array view over the same bytes is.
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": mimeType,
-      "Content-Disposition": `attachment; filename*=UTF-8''${name}`,
+      "Content-Disposition": disposition,
       "Content-Length": String(buffer.length),
     },
   });

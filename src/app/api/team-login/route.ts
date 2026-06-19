@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/auth";
 import { getTeamAccountByUsername, verifyPassword } from "@/lib/team-accounts";
+import { enforceRateLimit, readJson } from "@/lib/http";
+import { LIMITS } from "@/lib/rate-limit";
 
 // A well-formed throwaway hash (16-byte salt : 64-byte hash) so a missing
 // username still runs a full scrypt pass — avoids a timing oracle for "does this
@@ -10,13 +12,12 @@ const DUMMY_HASH = `${"0".repeat(32)}:${"0".repeat(128)}`;
 // POST /api/team-login → team member login with admin-assigned username + password.
 // Separate from /api/admin-login (owner) and /api/session (Firebase clients).
 export async function POST(request: Request) {
-  let username: string | undefined;
-  let password: string | undefined;
-  try {
-    ({ username, password } = await request.json());
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const limited = await enforceRateLimit(request, "team-login", LIMITS.auth);
+  if (limited) return limited;
+
+  const parsed = await readJson<{ username?: string; password?: string }>(request, 4 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const { username, password } = parsed.data;
   if (!username || !password) {
     return NextResponse.json(
       { ok: false, error: "Enter your username and password." },

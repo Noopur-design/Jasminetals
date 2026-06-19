@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
+import { put } from "@vercel/blob";
 import { requireAdmin } from "@/lib/server-auth";
 import { addClientDocument, type ClientDocument } from "@/lib/store";
+import { config } from "@/lib/config";
+import { safeExtension, isInsideDir, enforceRateLimit } from "@/lib/http";
+import { LIMITS } from "@/lib/rate-limit";
 
 const UPLOADS_DIR = path.join(process.cwd(), ".data", "uploads");
 
@@ -17,6 +21,8 @@ function docId() {
 }
 
 export async function POST(req: Request) {
+  const limited = await enforceRateLimit(req, "upload", LIMITS.write);
+  if (limited) return limited;
   if (!(await requireAdmin())) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
@@ -37,13 +43,41 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Missing required fields" }, { status: 400 });
   }
 
-  const ext = file.name.split(".").pop() ?? "pdf";
-  const id = docId();
-  const filename = `${id}.${ext}`;
+  if (file.size > config.uploads.maxBytes) {
+    return NextResponse.json({ ok: false, error: "File too large (max 10 MB)." }, { status: 413 });
+  }
 
-  await fs.mkdir(UPLOADS_DIR, { recursive: true });
+  // The id is server-generated and the extension is sanitised to an allowlisted
+  // alphanumeric token — no part of the path comes through raw from the client.
+  const id = docId();
+  const ext = safeExtension(file.name, config.uploads.allowedExtensions);
+  const filename = `${id}.${ext}`;
+  const dest = path.join(UPLOADS_DIR, filename);
+  if (!isInsideDir(UPLOADS_DIR, dest)) {
+    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer());
-  await fs.writeFile(path.join(UPLOADS_DIR, filename), buffer);
+  // Re-check the real byte length (a client can lie about file.size).
+  if (buffer.length > config.uploads.maxBytes) {
+    return NextResponse.json({ ok: false, error: "File too large (max 10 MB)." }, { status: 413 });
+  }
+
+  // Production → Vercel Blob (Vercel's filesystem is read-only). Dev → local file.
+  // The blob is public-but-unguessable; it's never handed to the client — the
+  // download route fetches it server-side behind the auth/ownership check.
+  let blobUrl: string | undefined;
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    const result = await put(`uploads/${filename}`, buffer, {
+      access: "public",
+      contentType: file.type || "application/octet-stream",
+      addRandomSuffix: false,
+    });
+    blobUrl = result.url;
+  } else {
+    await fs.mkdir(UPLOADS_DIR, { recursive: true });
+    await fs.writeFile(dest, buffer);
+  }
 
   const doc: ClientDocument = {
     id,
@@ -52,6 +86,7 @@ export async function POST(req: Request) {
     size: humanSize(buffer.length),
     date: new Date().toISOString().slice(0, 10),
     filename,
+    blobUrl,
     mimeType: file.type || "application/octet-stream",
   };
 

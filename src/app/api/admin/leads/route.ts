@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import { listLeads, updateLead, deleteLead, type Lead } from "@/lib/store";
 
 // GET /api/admin/leads — list all leads (admin only)
@@ -16,12 +17,9 @@ export async function PATCH(req: Request) {
   if (!(await requireAdmin())) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
-  let body: { id: string; status?: Lead["status"]; assignedTeam?: string[] };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const parsed = await readJson<{ id?: string; status?: Lead["status"]; assignedTeam?: string[] }>(req, 16 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   if (!body.id) {
     return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
   }
@@ -41,12 +39,9 @@ export async function DELETE(req: Request) {
   if (!(await requireAdmin())) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
-  let body: { id: string };
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const parsed = await readJson<{ id?: string }>(req, 4 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   if (!body.id) return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
   const ok = await deleteLead(body.id);
   if (!ok) return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });

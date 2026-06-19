@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import { adminAuth, adminDb, isAdminConfigured } from "@/lib/firebase/admin";
 
 function guardConfigured() {
@@ -36,15 +37,10 @@ export async function POST(request: Request) {
   const notReady = guardConfigured();
   if (notReady) return notReady;
 
-  let email: string | undefined;
-  let active = true;
-  try {
-    const body = await request.json();
-    email = body.email;
-    if (typeof body.active === "boolean") active = body.active;
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const parsed = await readJson<{ email?: string; active?: boolean }>(request, 4 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const email = parsed.data.email;
+  const active = typeof parsed.data.active === "boolean" ? parsed.data.active : true;
   if (!email) {
     return NextResponse.json({ ok: false, error: "Email is required" }, { status: 400 });
   }

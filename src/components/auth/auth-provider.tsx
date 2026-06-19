@@ -128,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUpEmail: async ({ name, phone, email, password }) => {
       const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
       await updateProfile(cred.user, { displayName: name.trim() }).catch(() => {});
-      // Best-effort profile save — never let a DB write block sign-in.
+      // Best-effort profile save — never let a DB write block sign-up.
       try {
         await set(ref(db, `users/${cred.user.uid}`), {
           name: name.trim(),
@@ -137,10 +137,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           createdAt: Date.now(),
         });
       } catch {
-        /* DB rules / network — profile syncs later, login still proceeds */
+        /* DB rules / network — profile syncs later */
       }
-      sendEmailVerification(cred.user).catch(() => {});
-      await finishAuth();
+      // Require email verification before entering the app. This is what stops a
+      // fresh, unverified account from auto-claiming a client portal it was
+      // assigned by email. Send the link, then sign back out so there's no
+      // half-session — the caller shows a "check your email" message.
+      await sendEmailVerification(cred.user).catch(() => {});
+      await signOut(auth);
     },
     signInGoogle: async () => {
       const cred = await signInWithPopup(auth, googleProvider);

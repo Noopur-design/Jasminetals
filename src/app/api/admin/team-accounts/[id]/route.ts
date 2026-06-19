@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import {
   updateTeamAccount,
   setTeamAccountPassword,
@@ -21,7 +22,7 @@ export async function PATCH(
   }
   const { id } = await params;
 
-  let body: {
+  const parsed = await readJson<{
     username?: string;
     name?: string;
     email?: string;
@@ -29,12 +30,9 @@ export async function PATCH(
     permissions?: Permissions;
     status?: "active" | "suspended";
     password?: string;
-  };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  }>(request, 16 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   // Password reset (admin-only — team members have no self-serve path).
   if (body.password !== undefined) {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import {
   listTeamAccounts,
   upsertTeamAccount,
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
-  let body: {
+  const parsed = await readJson<{
     id?: string;
     username?: string;
     name?: string;
@@ -33,12 +34,9 @@ export async function POST(request: Request) {
     permissions?: Permissions;
     status?: "active" | "suspended";
     password?: string;
-  };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  }>(request, 16 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   if (!body.username) {
     return NextResponse.json({ ok: false, error: "Username is required." }, { status: 400 });

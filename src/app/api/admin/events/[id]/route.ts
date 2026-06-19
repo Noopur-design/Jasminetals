@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import { updateEvent, deleteEvent, listEvents } from "@/lib/store";
 import { canSeeEvent } from "@/lib/scope";
 import type { EventStatus } from "@/lib/internal-data";
@@ -19,12 +20,9 @@ export async function PATCH(
   if (!target || !canSeeEvent(target, session)) {
     return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   }
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const parsed = await readJson<Record<string, unknown>>(request, 32 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
   const patch: Record<string, unknown> = {};
   if (body.client !== undefined) patch.client = String(body.client);
   if (body.type !== undefined) patch.type = String(body.type);

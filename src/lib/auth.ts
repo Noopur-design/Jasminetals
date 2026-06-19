@@ -64,7 +64,9 @@ export async function verifySessionToken(
 ): Promise<SessionUser | null> {
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, secret());
+    // Pin the algorithm — never accept a token signed with anything but our
+    // HMAC scheme (defends against algorithm-confusion / "alg":"none").
+    const { payload } = await jwtVerify(token, secret(), { algorithms: ["HS256"] });
     if (!payload.sub || typeof payload.email !== "string") return null;
     const r = payload.role;
     const role: Role =

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import {
   isCollection,
   listCollection,
@@ -55,14 +56,21 @@ export async function POST(
   if (!mod || !isCollection(collection)) {
     return NextResponse.json({ ok: false, error: "Unknown collection" }, { status: 404 });
   }
-  if (!(await requirePermission(mod, "create"))) {
+  const session = await requirePermission(mod, "create");
+  if (!session) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
+  const parsed = await readJson<Record<string, unknown>>(req, 64 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+  // Scope writes too: a team member may only create a task on an event/portal
+  // assigned to them (mirrors the GET filter and the PATCH/DELETE guards). 404 so
+  // an out-of-scope eventId is never confirmed to exist.
+  if (collection === "tasks" && session.role !== "admin") {
+    const [events, portals] = await Promise.all([listEvents(), listClientAssignments()]);
+    if (!canSeeTaskEventId(String(body.eventId ?? ""), events, portals, session)) {
+      return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
+    }
   }
   const item = await createInCollection(collection, body);
   return NextResponse.json({ ok: true, item });

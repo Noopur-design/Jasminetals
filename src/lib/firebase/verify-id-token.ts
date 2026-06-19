@@ -28,6 +28,7 @@ export async function verifyFirebaseIdToken(
 ): Promise<FirebaseIdentity | null> {
   try {
     const { payload } = await jwtVerify(idToken, JWKS, {
+      algorithms: ["RS256"], // Firebase ID tokens are RS256 — never accept anything else.
       issuer: `https://securetoken.google.com/${PROJECT_ID}`,
       audience: PROJECT_ID,
     });

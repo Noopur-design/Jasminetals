@@ -8,6 +8,7 @@ import {
   SESSION_MAX_AGE,
 } from "@/lib/auth";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import { getTeamAccount } from "@/lib/team-accounts";
 import { getClientAssignment } from "@/lib/store";
 
@@ -35,12 +36,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Forbidden" }, { status: 403 });
   }
 
-  let body: { type?: "team" | "client"; id?: string; email?: string };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const parsed = await readJson<{ type?: "team" | "client"; id?: string; email?: string }>(request, 4 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
 
   // The admin's current token — preserved so they can return.
   const adminToken = (await cookies()).get(SESSION_COOKIE)?.value;

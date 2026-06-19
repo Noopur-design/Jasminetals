@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
+import { readJson } from "@/lib/http";
 import { adminAuth, adminDb, isAdminConfigured } from "@/lib/firebase/admin";
 import { VIEWER_PERMISSIONS, type Permissions } from "@/lib/permissions";
 
@@ -34,13 +35,9 @@ export async function POST(request: Request) {
   const notReady = guardConfigured();
   if (notReady) return notReady;
 
-  let email: string | undefined;
-  let permissions: Permissions | undefined;
-  try {
-    ({ email, permissions } = await request.json());
-  } catch {
-    return NextResponse.json({ ok: false, error: "Bad request" }, { status: 400 });
-  }
+  const parsed = await readJson<{ email?: string; permissions?: Permissions }>(request, 16 * 1024);
+  if (!parsed.ok) return parsed.response;
+  const { email, permissions } = parsed.data;
   if (!email) {
     return NextResponse.json({ ok: false, error: "Email is required" }, { status: 400 });
   }

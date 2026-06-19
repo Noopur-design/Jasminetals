@@ -1,7 +1,6 @@
 import "server-only";
-import { promises as fs } from "fs";
-import path from "path";
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { readDoc, writeDoc } from "@/lib/storage";
 import { teamMembers } from "@/lib/internal-data";
 import { VIEWER_PERMISSIONS, type Permissions } from "@/lib/permissions";
 
@@ -16,8 +15,6 @@ import { VIEWER_PERMISSIONS, type Permissions } from "@/lib/permissions";
  * system requires a service-account key that isn't configured, so team logins
  * would otherwise be impossible.
  */
-
-const FILE = path.join(process.cwd(), ".data", "team-accounts.json");
 
 export type TeamAccountStatus = "active" | "suspended";
 
@@ -55,19 +52,11 @@ function seed(): TeamAccount[] {
 }
 
 async function readAll(): Promise<TeamAccount[]> {
-  try {
-    const raw = await fs.readFile(FILE, "utf8");
-    return JSON.parse(raw) as TeamAccount[];
-  } catch {
-    const s = seed();
-    await writeAll(s);
-    return s;
-  }
+  return readDoc<TeamAccount[]>("team-accounts", seed());
 }
 
 async function writeAll(list: TeamAccount[]): Promise<void> {
-  await fs.mkdir(path.dirname(FILE), { recursive: true });
-  await fs.writeFile(FILE, JSON.stringify(list, null, 2), "utf8");
+  return writeDoc("team-accounts", list);
 }
 
 // ── Password hashing (scrypt + per-password random salt) ────────
