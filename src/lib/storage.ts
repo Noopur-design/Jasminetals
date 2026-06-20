@@ -54,8 +54,8 @@ async function atomicWrite(filePath: string, content: string): Promise<void> {
 export async function readDoc<T>(name: string, fallback: T): Promise<T> {
   if (!isSafeName(name)) throw new Error(`Unsafe storage name: ${name}`);
   if (kvEnabled) {
-    const v = await kv().get<T>(KEY_PREFIX + name);
-    return v ?? fallback;
+    const raw = await kv().get(KEY_PREFIX + name);
+    return raw ? (JSON.parse(raw) as T) : fallback;
   }
   try {
     return JSON.parse(await fs.readFile(fileFor(name), "utf8")) as T;
@@ -68,7 +68,7 @@ export async function readDoc<T>(name: string, fallback: T): Promise<T> {
 export async function writeDoc<T>(name: string, data: T): Promise<void> {
   if (!isSafeName(name)) throw new Error(`Unsafe storage name: ${name}`);
   if (kvEnabled) {
-    await kv().set(KEY_PREFIX + name, data);
+    await kv().set(KEY_PREFIX + name, JSON.stringify(data));
     return;
   }
   const filePath = fileFor(name);
