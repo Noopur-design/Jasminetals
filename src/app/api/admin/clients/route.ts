@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
 import { readJson } from "@/lib/http";
-import { adminAuth, adminDb, isAdminConfigured } from "@/lib/firebase/admin";
+import { adminAuth, isAdminConfigured } from "@/lib/firebase/admin";
+import { listMirror, upsertMirror } from "@/lib/firebase/mirror";
 
 function guardConfigured() {
   if (!isAdminConfigured()) {
@@ -21,11 +22,7 @@ export async function GET() {
   const notReady = guardConfigured();
   if (notReady) return notReady;
 
-  const snap = await adminDb().collection("clients").orderBy("updatedAt", "desc").get();
-  return NextResponse.json({
-    ok: true,
-    clients: snap.docs.map((d) => ({ uid: d.id, ...d.data() })),
-  });
+  return NextResponse.json({ ok: true, clients: await listMirror("clients") });
 }
 
 // POST /api/admin/clients → mark a deal done (activate) or revoke portal access
@@ -58,15 +55,12 @@ export async function POST(request: Request) {
   // active → grant the "client" role (portal unlocks); inactive → back to lead.
   await adminAuth().setCustomUserClaims(user.uid, { role: active ? "client" : null });
   await adminAuth().revokeRefreshTokens(user.uid); // force the new role to apply
-  await adminDb().collection("clients").doc(user.uid).set(
-    {
-      email: user.email,
-      name: user.displayName ?? "",
-      status: active ? "active" : "revoked",
-      updatedAt: Date.now(),
-    },
-    { merge: true },
-  );
+  await upsertMirror("clients", user.uid, {
+    email: user.email,
+    name: user.displayName ?? "",
+    status: active ? "active" : "revoked",
+    updatedAt: Date.now(),
+  });
 
   return NextResponse.json({ ok: true, uid: user.uid, status: active ? "active" : "revoked" });
 }

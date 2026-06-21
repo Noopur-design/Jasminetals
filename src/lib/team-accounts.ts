@@ -11,9 +11,9 @@ import { VIEWER_PERMISSIONS, type Permissions } from "@/lib/permissions";
  * client. Only the owner-admin can create accounts, assign/reset passwords, or
  * change permissions — team members can never change their own password.
  *
- * This is intentionally independent of Firebase: the Firestore-backed members
- * system requires a service-account key that isn't configured, so team logins
- * would otherwise be impossible.
+ * This is intentionally independent of the Firebase Auth custom-claim members
+ * system (which requires users to exist as Firebase Auth accounts) — it lets the
+ * owner stand up team logins directly, with or without Firebase configured.
  */
 
 export type TeamAccountStatus = "active" | "suspended";

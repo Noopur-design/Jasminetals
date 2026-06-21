@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
 import { readJson } from "@/lib/http";
-import { adminAuth, adminDb, isAdminConfigured } from "@/lib/firebase/admin";
+import { adminAuth, isAdminConfigured } from "@/lib/firebase/admin";
+import { getMirror, upsertMirror } from "@/lib/firebase/mirror";
 import type { Permissions } from "@/lib/permissions";
 
 function guardConfigured() {
@@ -34,7 +35,7 @@ export async function PATCH(
     // Strip the team role entirely → instantly loses all admin access.
     await adminAuth().setCustomUserClaims(uid, { role: null, permissions: null });
   } else {
-    const existing = (await adminDb().collection("members").doc(uid).get()).data();
+    const existing = await getMirror("members", uid);
     const perms = permissions ?? (existing?.permissions as Permissions) ?? {};
     await adminAuth().setCustomUserClaims(uid, { role: "team", permissions: perms });
   }
@@ -43,7 +44,7 @@ export async function PATCH(
   const update: Record<string, unknown> = { updatedAt: Date.now() };
   if (permissions) update.permissions = permissions;
   if (status) update.status = status;
-  await adminDb().collection("members").doc(uid).set(update, { merge: true });
+  await upsertMirror("members", uid, update);
 
   return NextResponse.json({ ok: true });
 }
@@ -62,9 +63,6 @@ export async function DELETE(
   const { uid } = await params;
   await adminAuth().setCustomUserClaims(uid, { role: null, permissions: null });
   await adminAuth().revokeRefreshTokens(uid);
-  await adminDb().collection("members").doc(uid).set(
-    { role: "client", status: "removed", updatedAt: Date.now() },
-    { merge: true },
-  );
+  await upsertMirror("members", uid, { role: "client", status: "removed", updatedAt: Date.now() });
   return NextResponse.json({ ok: true });
 }

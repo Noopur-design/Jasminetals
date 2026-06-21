@@ -1,6 +1,6 @@
 /* ============================================================
    Role-based access control (RBAC) — the permission model shared by the
-   client UI, server guards and Firestore. Roles: admin (owner, full access),
+   client UI, server guards and Firebase Auth claims. Roles: admin (owner, full access),
    team (sub-user, only what the admin grants), client (public/portal only).
    ============================================================ */
 

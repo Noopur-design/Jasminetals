@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/server-auth";
 import { readJson } from "@/lib/http";
-import { adminAuth, adminDb, isAdminConfigured } from "@/lib/firebase/admin";
+import { adminAuth, isAdminConfigured } from "@/lib/firebase/admin";
+import { listMirror, upsertMirror } from "@/lib/firebase/mirror";
 import { VIEWER_PERMISSIONS, type Permissions } from "@/lib/permissions";
 
 function guardConfigured() {
@@ -22,9 +23,7 @@ export async function GET() {
   const notReady = guardConfigured();
   if (notReady) return notReady;
 
-  const snap = await adminDb().collection("members").orderBy("updatedAt", "desc").get();
-  const members = snap.docs.map((d) => ({ uid: d.id, ...d.data() }));
-  return NextResponse.json({ ok: true, members });
+  return NextResponse.json({ ok: true, members: await listMirror("members") });
 }
 
 // POST /api/admin/members → promote an existing user to "team" with permissions
@@ -55,17 +54,14 @@ export async function POST(request: Request) {
   const perms = permissions ?? VIEWER_PERMISSIONS;
   await adminAuth().setCustomUserClaims(user.uid, { role: "team", permissions: perms });
   await adminAuth().revokeRefreshTokens(user.uid); // force claims to refresh
-  await adminDb().collection("members").doc(user.uid).set(
-    {
-      email: user.email,
-      name: user.displayName ?? "",
-      role: "team",
-      permissions: perms,
-      status: "active",
-      updatedAt: Date.now(),
-    },
-    { merge: true },
-  );
+  await upsertMirror("members", user.uid, {
+    email: user.email,
+    name: user.displayName ?? "",
+    role: "team",
+    permissions: perms,
+    status: "active",
+    updatedAt: Date.now(),
+  });
 
   return NextResponse.json({ ok: true, uid: user.uid });
 }

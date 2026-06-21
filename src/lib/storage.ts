@@ -2,28 +2,32 @@ import "server-only";
 import { promises as fs } from "fs";
 import path from "path";
 import { isSafeName } from "@/lib/paths";
-import { adminDb, isAdminConfigured } from "@/lib/firebase/admin";
+import { adminRtdb, isAdminConfigured } from "@/lib/firebase/admin";
 
 /**
  * JSON-document persistence with two interchangeable backends:
- *   • Firestore when the Firebase Admin service-account key is configured →
- *     works on Vercel's read-only serverless filesystem.
+ *   • Firebase Realtime Database when the Admin service-account key is configured
+ *     → works on Vercel's read-only serverless filesystem.
  *   • Local `.data/<name>.json` files otherwise → zero-setup local dev.
  *
  * Each logical document — a collection array, or a small object like the studio
- * settings / reset token — is one Firestore document inside the `STORE_COLLECTION`
- * collection, keyed by `name`. The whole value is stored JSON-serialised in a
- * single field so it round-trips losslessly regardless of Firestore's per-field
- * type constraints (nested arrays, undefined, etc.). `readDoc` returns `fallback`
- * when the document doesn't exist yet (the fallback is NOT persisted; writes do).
+ * settings / reset token — is one node under `STORE_ROOT/<name>`. The whole value
+ * is stored JSON-serialised in a single `json` child so it round-trips losslessly
+ * regardless of RTDB's quirks (it drops empty arrays/objects to null, rejects
+ * `undefined`, and coerces sparse arrays to objects). `readDoc` returns `fallback`
+ * when the node doesn't exist yet (the fallback is NOT persisted; writes do).
  *
  * NOTE: read-modify-write is not transactionally atomic across instances. The
- * fs backend serialises writes within a process; the Firestore backend is last-
- * write-wins. Acceptable for this app's traffic.
+ * fs backend serialises writes within a process; the RTDB backend is last-write-
+ * wins. Acceptable for this app's traffic.
  */
 const DATA_DIR = path.join(process.cwd(), ".data");
-const STORE_COLLECTION = "jt_store";
+const STORE_ROOT = "jt_store";
 const JSON_FIELD = "json";
+
+function nodeRef(name: string) {
+  return adminRtdb().ref(`${STORE_ROOT}/${name}`);
+}
 
 function fileFor(name: string): string {
   // Names are always literals or allowlisted slugs, but never trust them when
@@ -58,8 +62,8 @@ async function atomicWrite(filePath: string, content: string): Promise<void> {
 export async function readDoc<T>(name: string, fallback: T): Promise<T> {
   if (!isSafeName(name)) throw new Error(`Unsafe storage name: ${name}`);
   if (isAdminConfigured()) {
-    const snap = await adminDb().collection(STORE_COLLECTION).doc(name).get();
-    const raw = snap.exists ? (snap.get(JSON_FIELD) as string | undefined) : undefined;
+    const snap = await nodeRef(name).child(JSON_FIELD).get();
+    const raw = snap.exists() ? (snap.val() as string | null) : null;
     return raw ? (JSON.parse(raw) as T) : fallback;
   }
   try {
@@ -73,10 +77,10 @@ export async function readDoc<T>(name: string, fallback: T): Promise<T> {
 export async function writeDoc<T>(name: string, data: T): Promise<void> {
   if (!isSafeName(name)) throw new Error(`Unsafe storage name: ${name}`);
   if (isAdminConfigured()) {
-    await adminDb()
-      .collection(STORE_COLLECTION)
-      .doc(name)
-      .set({ [JSON_FIELD]: JSON.stringify(data), updatedAt: new Date().toISOString() });
+    await nodeRef(name).set({
+      [JSON_FIELD]: JSON.stringify(data),
+      updatedAt: new Date().toISOString(),
+    });
     return;
   }
   const filePath = fileFor(name);
@@ -87,7 +91,7 @@ export async function writeDoc<T>(name: string, data: T): Promise<void> {
 export async function deleteDoc(name: string): Promise<void> {
   if (!isSafeName(name)) throw new Error(`Unsafe storage name: ${name}`);
   if (isAdminConfigured()) {
-    await adminDb().collection(STORE_COLLECTION).doc(name).delete();
+    await nodeRef(name).remove();
     return;
   }
   await fs.unlink(fileFor(name)).catch(() => {});
