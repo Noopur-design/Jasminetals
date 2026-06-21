@@ -235,8 +235,8 @@ export type ClientDocument = {
   type: "contract" | "invoice" | "other";
   size: string;
   date: string;       // ISO date
-  filename: string;   // local-fs name (dev): .data/uploads/{filename}
-  blobUrl?: string;   // Vercel Blob URL (prod) — fetched server-side behind auth
+  filename: string;     // local-fs name (dev): .data/uploads/{filename}
+  storagePath?: string; // Firebase Storage object path (prod) — fetched server-side behind auth
   mimeType: string;
 };
 

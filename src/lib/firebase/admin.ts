@@ -2,15 +2,20 @@ import "server-only";
 import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 /**
- * Firebase Admin SDK (server-only). Used for privileged operations the client
- * must never do: setting role/permission custom claims on team members and
- * server-side Firestore access. Lazily initialised so the app builds/runs even
- * before the service-account key is configured.
+ * Firebase Admin SDK (server-only). This is the app's PRIMARY backend on Vercel:
+ *   • Firestore  → the JSON-document data store (see src/lib/storage.ts)
+ *   • Storage    → uploaded client documents (see the upload/download routes)
+ *   • Auth       → setting role/permission custom claims on team members
+ *
+ * Lazily initialised so the app builds/runs even before the service-account key
+ * is configured; in that case it falls back to the local `.data/` store (dev).
  */
 let app: App | undefined;
 
+/** True when a service-account key is present → Firestore/Storage are usable. */
 export function isAdminConfigured() {
   return Boolean(
     process.env.FIREBASE_ADMIN_CLIENT_EMAIL && process.env.FIREBASE_ADMIN_PRIVATE_KEY,
@@ -31,9 +36,13 @@ function adminApp(): App {
       "Firebase Admin is not configured. Add FIREBASE_ADMIN_CLIENT_EMAIL and FIREBASE_ADMIN_PRIVATE_KEY to .env.local (see SETUP-ADMIN.md).",
     );
   }
-  app = initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+  app = initializeApp({
+    credential: cert({ projectId, clientEmail, privateKey }),
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  });
   return app;
 }
 
 export const adminAuth = () => getAuth(adminApp());
 export const adminDb = () => getFirestore(adminApp());
+export const adminBucket = () => getStorage(adminApp()).bucket();

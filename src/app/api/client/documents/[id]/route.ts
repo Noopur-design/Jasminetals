@@ -4,6 +4,7 @@ import path from "path";
 import { cookies } from "next/headers";
 import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth";
 import { getClientPortalData, listClientPortalDataAll, type ClientDocument } from "@/lib/store";
+import { adminBucket } from "@/lib/firebase/admin";
 import { isInsideDir } from "@/lib/http";
 
 const UPLOADS_DIR = path.join(process.cwd(), ".data", "uploads");
@@ -43,16 +44,22 @@ export async function GET(
   const mimeType = doc.mimeType ?? "application/octet-stream";
   const disposition = `attachment; filename*=UTF-8''${encodeURIComponent(doc.name)}`;
 
-  // Production: the file lives in Vercel Blob. The caller is already authorised,
-  // so fetch it server-side and stream it — the blob URL never reaches the client.
-  if (doc.blobUrl) {
-    const upstream = await fetch(doc.blobUrl);
-    if (!upstream.ok || !upstream.body) {
+  // Production: the file lives in Firebase Storage. The caller is already
+  // authorised, so read it server-side and stream it — the object is private and
+  // its path never reaches the client.
+  if (doc.storagePath) {
+    try {
+      const [buffer] = await adminBucket().file(doc.storagePath).download();
+      return new NextResponse(new Uint8Array(buffer), {
+        headers: {
+          "Content-Type": mimeType,
+          "Content-Disposition": disposition,
+          "Content-Length": String(buffer.length),
+        },
+      });
+    } catch {
       return NextResponse.json({ error: "File not found" }, { status: 404 });
     }
-    return new NextResponse(upstream.body, {
-      headers: { "Content-Type": mimeType, "Content-Disposition": disposition },
-    });
   }
 
   // Local dev: read from .data/uploads. `filename` is a server-generated,

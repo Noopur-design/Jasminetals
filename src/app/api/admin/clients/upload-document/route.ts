@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { put } from "@vercel/blob";
 import { requireAdmin } from "@/lib/server-auth";
 import { addClientDocument, type ClientDocument } from "@/lib/store";
 import { config } from "@/lib/config";
+import { adminBucket, isAdminConfigured } from "@/lib/firebase/admin";
 import { safeExtension, isInsideDir, enforceRateLimit } from "@/lib/http";
 import { LIMITS } from "@/lib/rate-limit";
 
@@ -63,17 +63,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "File too large (max 10 MB)." }, { status: 413 });
   }
 
-  // Production → Vercel Blob (Vercel's filesystem is read-only). Dev → local file.
-  // The blob is public-but-unguessable; it's never handed to the client — the
-  // download route fetches it server-side behind the auth/ownership check.
-  let blobUrl: string | undefined;
-  if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const result = await put(`uploads/${filename}`, buffer, {
-      access: "public",
-      contentType: file.type || "application/octet-stream",
-      addRandomSuffix: false,
-    });
-    blobUrl = result.url;
+  // Production → Firebase Storage (Vercel's filesystem is read-only). Dev → local
+  // file. The object is private; it's never handed to the client — the download
+  // route fetches it server-side behind the auth/ownership check.
+  let storagePath: string | undefined;
+  if (isAdminConfigured()) {
+    storagePath = `uploads/${filename}`;
+    await adminBucket()
+      .file(storagePath)
+      .save(buffer, { contentType: file.type || "application/octet-stream", resumable: false });
   } else {
     await fs.mkdir(UPLOADS_DIR, { recursive: true });
     await fs.writeFile(dest, buffer);
@@ -86,7 +84,7 @@ export async function POST(req: Request) {
     size: humanSize(buffer.length),
     date: new Date().toISOString().slice(0, 10),
     filename,
-    blobUrl,
+    storagePath,
     mimeType: file.type || "application/octet-stream",
   };
 

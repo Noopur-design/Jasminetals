@@ -1,10 +1,10 @@
 import "server-only";
-import { kv, kvEnabled } from "@/lib/kv";
 
 /**
- * Rate limiter. Uses KV (Upstash/Vercel KV) when configured — correct across
- * multiple serverless instances — and falls back to an in-memory map locally.
- * Keyed by an arbitrary string (usually `${ip}:${bucket}`).
+ * Rate limiter (in-memory). Keyed by an arbitrary string (usually
+ * `${ip}:${bucket}`). The store lives in the process, so on Vercel each
+ * serverless instance limits independently — adequate brute-force / abuse
+ * protection for this app's traffic without a separate Redis dependency.
  */
 
 type Hit = { count: number; resetAt: number };
@@ -38,7 +38,7 @@ export type RateResult = {
   retryAfter: number;
 };
 
-/** In-memory limiter (single instance) — local dev / when KV is absent. */
+/** In-memory limiter (single instance). */
 function memRateLimit(key: string, limit: number, windowMs: number): RateResult {
   const now = Date.now();
   sweep(now);
@@ -56,31 +56,11 @@ function memRateLimit(key: string, limit: number, windowMs: number): RateResult 
   return { ok: true, remaining: limit - existing.count, retryAfter: 0 };
 }
 
-/** Distributed limiter via KV (INCR + PEXPIRE) — correct across Vercel instances. */
-async function kvRateLimit(key: string, limit: number, windowMs: number): Promise<RateResult> {
-  const k = `rl:${key}`;
-  const count = await kv().incr(k);
-  if (count === 1) await kv().pexpire(k, windowMs);
-  if (count > limit) {
-    const ttl = await kv().pttl(k);
-    return { ok: false, remaining: 0, retryAfter: Math.max(1, Math.ceil((ttl > 0 ? ttl : windowMs) / 1000)) };
-  }
-  return { ok: true, remaining: limit - count, retryAfter: 0 };
-}
-
 /**
  * Record a hit for `key` and report whether it's within `limit` per `windowMs`.
- * Uses KV when configured (shared across instances), else the in-memory map.
+ * Async so callers don't need to change if a distributed backend is added later.
  */
 export async function rateLimit(key: string, limit: number, windowMs: number): Promise<RateResult> {
-  if (kvEnabled) {
-    try {
-      return await kvRateLimit(key, limit, windowMs);
-    } catch {
-      // KV hiccup → fall back to the in-memory limiter rather than block traffic.
-      return memRateLimit(key, limit, windowMs);
-    }
-  }
   return memRateLimit(key, limit, windowMs);
 }
 

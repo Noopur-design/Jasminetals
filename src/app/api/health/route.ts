@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
-import { kv, kvEnabled } from "@/lib/kv";
+import { adminDb, isAdminConfigured } from "@/lib/firebase/admin";
 
 // Liveness/readiness probe for monitoring. Cheap, unauthenticated, leaks nothing
 // sensitive — just whether the process is up and the data store is reachable.
@@ -11,9 +11,9 @@ export async function GET() {
   const checks: Record<string, "ok" | "fail"> = {};
 
   try {
-    if (kvEnabled) {
-      // Production: confirm the KV store is reachable.
-      await kv().ping();
+    if (isAdminConfigured()) {
+      // Production: confirm Firestore is reachable.
+      await adminDb().collection("jt_store").doc("__health__").get();
     } else {
       // Local dev: confirm the .data dir is writable.
       const dir = path.join(process.cwd(), ".data");
@@ -30,9 +30,9 @@ export async function GET() {
     {
       status: healthy ? "ok" : "degraded",
       checks,
-      // Which persistence backend is active — "filesystem" on Vercel means KV
-      // isn't configured (writes will fail on the read-only serverless FS).
-      backend: kvEnabled ? "kv" : "filesystem",
+      // Which persistence backend is active — "filesystem" on Vercel means the
+      // Firebase Admin key isn't set (writes will fail on the read-only FS).
+      backend: isAdminConfigured() ? "firestore" : "filesystem",
       uptime: Math.round(process.uptime()),
       ts: new Date().toISOString(),
     },
