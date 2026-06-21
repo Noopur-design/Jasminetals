@@ -45,7 +45,6 @@ const COLUMNS = [
     links: [
       { label: "Book a Consultation", href: "/contact" },
       { label: "Client Login", href: "/login" },
-      { label: "Studio Login", href: "/admin" },
       { label: "Privacy Policy", href: "/legal/privacy" },
       { label: "Terms of Service", href: "/legal/terms" },
     ],
