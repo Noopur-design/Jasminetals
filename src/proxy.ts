@@ -19,8 +19,11 @@ export async function proxy(req: NextRequest) {
   const isClientLogin = pathname === "/login" || pathname === "/signup";
   const isAdminLogin  = pathname === "/admin";
 
-  // Already signed in — bounce off the login pages to the correct dashboard.
-  if (session && (isClientLogin || isAdminLogin)) {
+  // Already signed in WITH a real dashboard — bounce off the login pages to it.
+  // A "lead" has NO dashboard (dashboardFor → "/"), so we must NOT bounce them:
+  // otherwise a lingering lead session traps them on home and blocks them from
+  // reaching /admin (owner login) or /login (to upgrade to a client).
+  if (session && session.role !== "lead" && (isClientLogin || isAdminLogin)) {
     return NextResponse.redirect(new URL(dashboardFor(session.role), req.url));
   }
 
