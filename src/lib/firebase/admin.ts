@@ -22,6 +22,36 @@ export function isAdminConfigured() {
   );
 }
 
+/**
+ * Normalise the service-account private key from an env var into a valid PEM.
+ * Tolerates the common ways the value gets mangled in dashboards / .env pastes:
+ *   • surrounding single or double quotes left in the value
+ *   • literal `\n` sequences instead of real newlines
+ *   • a base64-encoded PEM (no "BEGIN" marker → decode it)
+ */
+function normalizePrivateKey(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  let key = raw.trim();
+  // Strip a single layer of surrounding quotes if present.
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1);
+  }
+  // If it doesn't look like a PEM yet, it may be base64-encoded — decode it.
+  if (!key.includes("BEGIN")) {
+    try {
+      const decoded = Buffer.from(key, "base64").toString("utf8");
+      if (decoded.includes("BEGIN")) key = decoded;
+    } catch {
+      /* fall through with the raw value */
+    }
+  }
+  // Convert any literal `\n` into real newlines (no-op if already real).
+  return key.replace(/\\n/g, "\n").trim();
+}
+
 function adminApp(): App {
   if (app) return app;
   if (getApps().length) {
@@ -30,7 +60,7 @@ function adminApp(): App {
   }
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  const privateKey = normalizePrivateKey(process.env.FIREBASE_ADMIN_PRIVATE_KEY);
   if (!clientEmail || !privateKey) {
     throw new Error(
       "Firebase Admin is not configured. Add FIREBASE_ADMIN_CLIENT_EMAIL and FIREBASE_ADMIN_PRIVATE_KEY to .env.local (see SETUP-ADMIN.md).",
