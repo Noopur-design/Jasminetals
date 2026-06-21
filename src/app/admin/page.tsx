@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Eye, EyeOff, ShieldCheck, TriangleAlert, User } from "lucide-react";
+import { Lock, Eye, EyeOff, ShieldCheck, TriangleAlert, User, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { Logo } from "@/components/site/logo";
 import { cn } from "@/lib/utils";
 
-type Mode = "admin" | "team";
+type Mode = "admin" | "team" | "client";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -22,6 +22,11 @@ export default function AdminLoginPage() {
   const [username, setUsername] = React.useState("");
   const [teamPassword, setTeamPassword] = React.useState("");
   const [showTeam, setShowTeam] = React.useState(false);
+
+  // Client fields
+  const [clientEmail, setClientEmail] = React.useState("");
+  const [clientPassword, setClientPassword] = React.useState("");
+  const [showClient, setShowClient] = React.useState(false);
 
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -81,6 +86,31 @@ export default function AdminLoginPage() {
     }
   }
 
+  async function handleClientSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!clientEmail || !clientPassword) return setError("Enter your email and password.");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/client-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: clientEmail, password: clientPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLoading(false);
+        setError(data.error ?? "Login failed.");
+        return;
+      }
+      router.push(data.redirectTo ?? "/portal");
+      router.refresh();
+    } catch {
+      setLoading(false);
+      setError("Network error. Please try again.");
+    }
+  }
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-ink px-4">
       <div className="w-full max-w-sm rounded-xl border border-white/10 bg-paper p-8 shadow-lift">
@@ -93,17 +123,19 @@ export default function AdminLoginPage() {
           <p className="text-sm text-ink-soft">
             {mode === "admin"
               ? "Owner access — enter the admin password."
-              : "Team access — sign in with your username and password."}
+              : mode === "team"
+                ? "Team access — sign in with your username and password."
+                : "Client access — sign in to your event portal."}
           </p>
         </div>
 
         {/* Mode toggle */}
-        <div className="mb-5 grid grid-cols-2 gap-1 rounded-lg border border-line bg-ivory p-1">
+        <div className="mb-5 grid grid-cols-3 gap-1 rounded-lg border border-line bg-ivory p-1">
           <button
             type="button"
             onClick={() => switchMode("admin")}
             className={cn(
-              "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              "inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
               mode === "admin" ? "bg-paper text-ink shadow-soft" : "text-ink-muted hover:text-ink",
             )}
           >
@@ -113,11 +145,21 @@ export default function AdminLoginPage() {
             type="button"
             onClick={() => switchMode("team")}
             className={cn(
-              "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              "inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
               mode === "team" ? "bg-paper text-ink shadow-soft" : "text-ink-muted hover:text-ink",
             )}
           >
             <User className="size-4" /> Team
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode("client")}
+            className={cn(
+              "inline-flex items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+              mode === "client" ? "bg-paper text-ink shadow-soft" : "text-ink-muted hover:text-ink",
+            )}
+          >
+            <Heart className="size-4" /> Client
           </button>
         </div>
 
@@ -161,7 +203,7 @@ export default function AdminLoginPage() {
               Enter dashboard
             </Button>
           </form>
-        ) : (
+        ) : mode === "team" ? (
           <form onSubmit={handleTeamSubmit} className="flex flex-col gap-4" noValidate>
             <Field label="Username" htmlFor="team-username">
               <div className="relative">
@@ -206,6 +248,52 @@ export default function AdminLoginPage() {
             </Button>
             <p className="text-center text-xs text-ink-muted">
               Forgot your password? Only your studio admin can reset it.
+            </p>
+          </form>
+        ) : (
+          <form onSubmit={handleClientSubmit} className="flex flex-col gap-4" noValidate>
+            <Field label="Email" htmlFor="client-email">
+              <div className="relative">
+                <User className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" aria-hidden />
+                <Input
+                  id="client-email"
+                  type="email"
+                  autoComplete="username"
+                  placeholder="you@example.com"
+                  className="px-10"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            </Field>
+            <Field label="Password" htmlFor="client-password">
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" aria-hidden />
+                <Input
+                  id="client-password"
+                  type={showClient ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  className="px-10"
+                  value={clientPassword}
+                  onChange={(e) => setClientPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowClient((s) => !s)}
+                  aria-label={showClient ? "Hide password" : "Show password"}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-ink-muted hover:text-ink"
+                >
+                  {showClient ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
+            </Field>
+            <Button type="submit" size="lg" loading={loading} className="w-full">
+              Sign in to portal
+            </Button>
+            <p className="text-center text-xs text-ink-muted">
+              Prefer Google? Use <a href="/login" className="underline underline-offset-2 hover:text-gold-dark">/login</a>.
             </p>
           </form>
         )}

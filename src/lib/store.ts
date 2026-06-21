@@ -1,5 +1,6 @@
 import "server-only";
 import { readDoc, writeDoc } from "@/lib/storage";
+import { hashPassword, verifyPassword } from "@/lib/team-accounts";
 import {
   events as seedEvents,
   clients as seedClients,
@@ -125,6 +126,9 @@ export type ClientAssignment = {
   assignedTeam?: string[];  // teamMember ids
   assignedAt: string;  // ISO datetime when admin promoted
   portalStatus?: "booked" | "planning" | "this-week" | "completed";
+  // Optional admin-set password so a client can sign in at /login without Google
+  // or email verification. Salted scrypt hash; never returned to the client.
+  passwordHash?: string;
 };
 
 export async function listClientAssignments(): Promise<ClientAssignment[]> {
@@ -174,6 +178,27 @@ export async function deleteClientAssignment(email: string): Promise<boolean> {
   if (next.length === all.length) return false;
   await writeCollection("client-assignments", next);
   return true;
+}
+
+/** Set (or clear) an admin-issued password for a client so they can sign in
+ *  with email + password — no Google or email verification needed. */
+export async function setClientPassword(email: string, password: string): Promise<boolean> {
+  const all = await listClientAssignments();
+  const idx = all.findIndex((c) => c.email.toLowerCase() === email.toLowerCase());
+  if (idx < 0) return false;
+  all[idx] = { ...all[idx], passwordHash: hashPassword(password) };
+  await writeCollection("client-assignments", all);
+  return true;
+}
+
+/** Returns the assignment if the email+password match the admin-set password. */
+export async function verifyClientPassword(
+  email: string,
+  password: string,
+): Promise<ClientAssignment | null> {
+  const a = await getClientAssignment(email);
+  if (!a || !a.passwordHash) return null;
+  return verifyPassword(password, a.passwordHash) ? a : null;
 }
 
 // ── Client Portal Data (milestones, budget, messages) ────────
