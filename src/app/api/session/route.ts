@@ -56,13 +56,16 @@ export async function POST(request: NextRequest) {
   } else if (identity.claimRole === "client") {
     role = "client";
   } else {
-    // Admin promoted this email to a client portal. Grant it ONLY to a verified
-    // owner of the address — otherwise anyone who self-signs-up with a client's
-    // assigned email would silently inherit that client's portal and identity.
-    // Google sign-ins are auto-verified; email/password users must confirm via
-    // the verification link first (until then they stay a "lead", no portal).
+    // Admin assigned this email a client portal. By default we grant it on the
+    // assignment alone — email verification isn't deliverable on this deployment,
+    // and requiring it would lock out every email/password client. Google sign-ins
+    // are auto-verified regardless. Set CLIENT_REQUIRE_VERIFICATION="true" to
+    // require a verified email (more secure: stops a stranger who self-signs-up
+    // with a client's assigned address from claiming the portal — turn on once
+    // real verification email delivery is configured).
     const assignment = await getClientAssignment(identity.email);
-    if (assignment && identity.emailVerified) role = "client";
+    const requireVerified = process.env.CLIENT_REQUIRE_VERIFICATION === "true";
+    if (assignment && (identity.emailVerified || !requireVerified)) role = "client";
   }
 
   const token = await createSessionToken({
