@@ -40,7 +40,7 @@ export default async function TeamAccessPage() {
   // Identity comes from the SIGNED SESSION — never a hardcoded member — so each
   // team member only ever sees their own scoped workspace.
   const session = await requireStaff();
-  if (!session) redirect("/admin");
+  if (!session) redirect("/login");
 
   const seedMe = memberById(session.uid);
   const me = {

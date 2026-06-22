@@ -12,7 +12,7 @@ export const metadata = { title: "Clients" };
 
 export default async function ClientsPage() {
   const session = await getServerSession();
-  if (!session) redirect("/admin");
+  if (!session) redirect("/login");
   // Governed by the clients module permission; a team member without it can't
   // see the roster, and one who can is scoped to their own client portals.
   if (!can(session.role, session.permissions, "clients", "view")) redirect("/internal");

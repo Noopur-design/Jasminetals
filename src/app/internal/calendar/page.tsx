@@ -11,7 +11,7 @@ export const metadata = { title: "Calendar" };
 
 export default async function CalendarPage() {
   const session = await requireStaff();
-  if (!session) redirect("/admin");
+  if (!session) redirect("/login");
 
   const [allEvents, allAssignments] = await Promise.all([
     listEvents(),

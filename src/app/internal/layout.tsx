@@ -20,7 +20,7 @@ export default async function InternalLayout({
   const session = await verifySessionToken(
     (await cookies()).get(SESSION_COOKIE)?.value,
   );
-  if (!session) redirect("/admin");
+  if (!session) redirect("/login");
   if (session.role !== "admin" && session.role !== "team") redirect("/portal");
 
   return (

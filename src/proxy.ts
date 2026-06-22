@@ -14,39 +14,32 @@ export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
 
+  // The old /admin login door is gone — there's a single sign-in at /login now.
+  if (pathname === "/admin") {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
   const isPortal   = pathname.startsWith("/portal");
   const isInternal = pathname.startsWith("/internal");
-  const isClientLogin = pathname === "/login" || pathname === "/signup";
-  const isAdminLogin  = pathname === "/admin";
+  const isLogin = pathname === "/login" || pathname === "/signup";
 
-  // Already signed in WITH a real dashboard — bounce off the login pages to it.
-  // A "lead" has NO dashboard (dashboardFor → "/"), so we must NOT bounce them:
-  // otherwise a lingering lead session traps them on home and blocks them from
-  // reaching /admin (owner login) or /login (to upgrade to a client).
-  if (session && session.role !== "lead" && (isClientLogin || isAdminLogin)) {
+  // Already signed in → bounce off the login page straight to the dashboard.
+  if (session && isLogin) {
     return NextResponse.redirect(new URL(dashboardFor(session.role), req.url));
   }
 
-  // Portal: client (or admin previewing) only.
-  if (isPortal) {
+  // Portal (the user dashboard): any signed-in user.
+  if (isPortal && !session) {
+    return NextResponse.redirect(new URL("/login", req.url));
+  }
+
+  // Internal panel: owner-admin (or team) only.
+  if (isInternal) {
     if (!session) {
       return NextResponse.redirect(new URL("/login", req.url));
     }
-    if (session.role !== "client" && session.role !== "admin") {
-      // Team members belong in the internal panel, leads have no dashboard yet.
-      return NextResponse.redirect(
-        new URL(session.role === "team" ? "/internal" : "/", req.url),
-      );
-    }
-  }
-
-  // Internal panel: admin or team only.
-  if (isInternal) {
-    if (!session) {
-      return NextResponse.redirect(new URL("/admin", req.url));
-    }
     if (session.role !== "admin" && session.role !== "team") {
-      // Clients and leads have no business here.
+      // Regular users belong in their portal, not the studio panel.
       return NextResponse.redirect(new URL("/portal", req.url));
     }
   }

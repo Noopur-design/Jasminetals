@@ -120,25 +120,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     closeAuth: () => setModalOpen(false),
     setMode,
     signInEmail: async (email, password) => {
-      // First try an admin-issued client password (works on the public /login page
-      // with no Firebase account and no email verification). Falls through to
-      // Firebase for Google-created / self-signed-up accounts.
-      try {
-        const res = await fetch("/api/client-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: email.trim(), password }),
-        });
-        if (res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { redirectTo?: string };
-          setRole(readRoleCookie());
-          setModalOpen(false);
-          window.location.assign(data.redirectTo ?? "/portal");
-          return;
-        }
-      } catch {
-        /* network hiccup — fall through to Firebase */
-      }
       await signInWithEmailAndPassword(auth, email.trim(), password);
       await finishAuth();
     },
