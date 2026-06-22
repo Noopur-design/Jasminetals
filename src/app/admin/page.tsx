@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Lock, Eye, EyeOff, ShieldCheck, TriangleAlert, User, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
@@ -11,7 +10,6 @@ import { cn } from "@/lib/utils";
 type Mode = "admin" | "team" | "client";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const [mode, setMode] = React.useState<Mode>("admin");
 
   // Admin (owner) fields
@@ -53,8 +51,9 @@ export default function AdminLoginPage() {
         setError(data.error ?? "Login failed.");
         return;
       }
-      router.push(data.redirectTo ?? "/internal");
-      router.refresh();
+      // Hard navigation so the freshly-set httpOnly session cookie is sent on the
+      // next request — a soft router.push can race the cookie and bounce back.
+      window.location.assign(data.redirectTo ?? "/internal");
     } catch {
       setLoading(false);
       setError("Network error. Please try again.");
@@ -78,8 +77,7 @@ export default function AdminLoginPage() {
         setError(data.error ?? "Login failed.");
         return;
       }
-      router.push(data.redirectTo ?? "/internal");
-      router.refresh();
+      window.location.assign(data.redirectTo ?? "/internal");
     } catch {
       setLoading(false);
       setError("Network error. Please try again.");
@@ -103,8 +101,7 @@ export default function AdminLoginPage() {
         setError(data.error ?? "Login failed.");
         return;
       }
-      router.push(data.redirectTo ?? "/portal");
-      router.refresh();
+      window.location.assign(data.redirectTo ?? "/portal");
     } catch {
       setLoading(false);
       setError("Network error. Please try again.");

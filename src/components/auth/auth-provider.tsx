@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   onIdTokenChanged,
   signInWithEmailAndPassword,
@@ -54,7 +53,6 @@ function readRoleCookie(): string | null {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
   const [user, setUser] = React.useState<User | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [role, setRole] = React.useState<string | null>(null);
@@ -105,8 +103,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const data = (await res.json()) as { ok: boolean; redirectTo?: string };
     setModalOpen(false);
     // Always go to the server-determined dashboard — never to a ?next= URL.
-    router.push(data.redirectTo ?? "/portal");
-    router.refresh();
+    // Hard navigation so the just-set httpOnly session cookie is sent on the next
+    // request; a soft router.push can race the cookie and bounce back to /login.
+    window.location.assign(data.redirectTo ?? "/portal");
   }
 
   const value: AuthContextValue = {
@@ -135,8 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const data = (await res.json().catch(() => ({}))) as { redirectTo?: string };
           setRole(readRoleCookie());
           setModalOpen(false);
-          router.push(data.redirectTo ?? "/portal");
-          router.refresh();
+          window.location.assign(data.redirectTo ?? "/portal");
           return;
         }
       } catch {
@@ -188,8 +186,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await fetch("/api/session", { method: "DELETE" });
       setUser(null);
       setRole(null);
-      router.push("/");
-      router.refresh();
+      // Hard navigation so the cleared session cookie takes effect immediately.
+      window.location.assign("/");
     },
   };
 
