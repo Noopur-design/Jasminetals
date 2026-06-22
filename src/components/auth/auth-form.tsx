@@ -55,8 +55,6 @@ export function AuthForm({
   const [googleLoading, setGoogleLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [resetSent, setResetSent] = React.useState(false);
-  // Set to the email we just sent a verification link to (signup needs it before login).
-  const [verifyEmail, setVerifyEmail] = React.useState<string | null>(null);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -74,9 +72,7 @@ export function AuthForm({
     try {
       if (mode === "signup") {
         await signUpEmail(form);
-        // Signup no longer auto-enters — show a verify-your-email confirmation.
-        setVerifyEmail(form.email.trim());
-        setLoading(false);
+        // success → provider logs them in and redirects to the portal
       } else {
         await signInEmail(form.email, form.password);
         // success → provider redirects
@@ -113,41 +109,6 @@ export function AuthForm({
   }
 
   const isSignup = mode === "signup";
-
-  // After an email/password signup we no longer drop the user straight in — show
-  // a "verify your email" confirmation so a fresh account can't silently claim a
-  // pre-assigned client portal.
-  if (verifyEmail) {
-    return (
-      <div>
-        <span className="eyebrow text-gold-dark">Almost there</span>
-        <h2 className="mt-2 font-serif text-3xl text-ink">Verify your email</h2>
-        <div className="mt-6 flex items-start gap-2 rounded-md border border-success/25 bg-success-soft px-3.5 py-3 text-sm text-success">
-          <CircleCheck className="mt-0.5 size-4 shrink-0" />
-          <span>
-            Your account was created. We sent a verification link to{" "}
-            <strong className="font-semibold">{verifyEmail}</strong>. Click it to confirm your
-            address, then sign in. (Check your spam folder too.)
-          </span>
-        </div>
-        <Button
-          type="button"
-          size="lg"
-          className="mt-6 w-full"
-          onClick={() => {
-            setVerifyEmail(null);
-            setForm((f) => ({ ...f, password: "" }));
-            onSwitchMode("login");
-          }}
-        >
-          Back to sign in
-        </Button>
-        <p className="mt-3 text-center text-xs text-ink-muted">
-          Prefer instant access? Use “Continue with Google”.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div>

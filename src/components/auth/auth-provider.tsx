@@ -9,7 +9,6 @@ import {
   signOut,
   updateProfile,
   sendPasswordResetEmail,
-  sendEmailVerification,
   type User,
 } from "firebase/auth";
 import { ref, set, update } from "firebase/database";
@@ -157,12 +156,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {
         /* DB rules / network — profile syncs later */
       }
-      // Require email verification before entering the app. This is what stops a
-      // fresh, unverified account from auto-claiming a client portal it was
-      // assigned by email. Send the link, then sign back out so there's no
-      // half-session — the caller shows a "check your email" message.
-      await sendEmailVerification(cred.user).catch(() => {});
-      await signOut(auth);
+      // Log the new user straight in — finishAuth mints the session and routes to
+      // the portal, so a fresh sign-up lands on the dashboard immediately.
+      await finishAuth();
     },
     signInGoogle: async () => {
       const cred = await signInWithPopup(auth, googleProvider);

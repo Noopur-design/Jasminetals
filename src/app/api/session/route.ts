@@ -10,7 +10,13 @@ import {
   type Role,
 } from "@/lib/auth";
 import { FULL_PERMISSIONS, type Permissions } from "@/lib/permissions";
-import { getClientAssignment } from "@/lib/store";
+import {
+  getClientAssignment,
+  setClientAssignment,
+  setClientPortalData,
+  seedClientPortalData,
+  type ClientAssignment,
+} from "@/lib/store";
 import { enforceRateLimit, readJson } from "@/lib/http";
 import { LIMITS } from "@/lib/rate-limit";
 
@@ -42,10 +48,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid token" }, { status: 401 });
   }
 
-  // Role precedence: owner allowlist (admin) → claim (admin/team/client) → lead.
-  // A fresh signup with no claim is a LEAD (public site only); the portal is
-  // unlocked only once the deal is done and the admin marks them a "client".
-  let role: Role = "lead";
+  // Role precedence: owner allowlist (admin) → claim (admin/team/client) →
+  // everyone else gets a client portal (auto-provisioned).
+  let role: Role = "client";
   let permissions: Permissions = {};
   if (isAdminEmail(identity.email) || identity.claimRole === "admin") {
     role = "admin";
@@ -53,19 +58,28 @@ export async function POST(request: NextRequest) {
   } else if (identity.claimRole === "team") {
     role = "team";
     permissions = identity.claimPermissions ?? {};
-  } else if (identity.claimRole === "client") {
-    role = "client";
   } else {
-    // Admin assigned this email a client portal. By default we grant it on the
-    // assignment alone — email verification isn't deliverable on this deployment,
-    // and requiring it would lock out every email/password client. Google sign-ins
-    // are auto-verified regardless. Set CLIENT_REQUIRE_VERIFICATION="true" to
-    // require a verified email (more secure: stops a stranger who self-signs-up
-    // with a client's assigned address from claiming the portal — turn on once
-    // real verification email delivery is configured).
-    const assignment = await getClientAssignment(identity.email);
-    const requireVerified = process.env.CLIENT_REQUIRE_VERIFICATION === "true";
-    if (assignment && (identity.emailVerified || !requireVerified)) role = "client";
+    // Any other authenticated user (claim "client" OR a brand-new sign-up) gets a
+    // working client portal. If the admin hasn't set up an assignment for them yet,
+    // auto-provision a starter one with seeded portal data, so every user always
+    // lands on a real dashboard instead of a dashboard-less "lead" home redirect.
+    role = "client";
+    const existing = await getClientAssignment(identity.email);
+    if (!existing) {
+      const name = identity.name ?? identity.email.split("@")[0];
+      const starter: ClientAssignment = {
+        email: identity.email,
+        name,
+        eventName: `${name}'s Event`,
+        eventType: "Event",
+        eventDate: new Date(Date.now() + 180 * 86_400_000).toISOString().slice(0, 10),
+        venue: "To be confirmed",
+        location: "To be confirmed",
+        assignedAt: new Date().toISOString(),
+      };
+      await setClientAssignment(starter);
+      await setClientPortalData(seedClientPortalData(starter));
+    }
   }
 
   const token = await createSessionToken({
