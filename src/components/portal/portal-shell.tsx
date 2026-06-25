@@ -127,23 +127,45 @@ function Sidebar({
 
       {/* Event context card */}
       <div className="mx-4 mb-2 rounded-lg border border-line bg-ivory/70 px-4 py-3.5">
-        <p className="eyebrow text-[10px]">Your event</p>
-        <p className="mt-1 font-serif text-base leading-tight text-ink">
-          {clientInfo.eventName ?? "Your event"}
-        </p>
-        <p className="mt-0.5 text-xs text-ink-soft">
-          {[clientInfo.eventType, clientInfo.eventLocation?.split(",")[0]]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-        <Link
-          href="/process"
-          onClick={onClose}
-          className="mt-2.5 flex items-center gap-0.5 text-xs font-medium text-gold-dark transition-colors hover:text-gold"
-        >
-          View your journey
-          <ChevronRight className="size-3.5" />
-        </Link>
+        {clientInfo.eventName ? (
+          <>
+            <p className="eyebrow text-[10px]">Your event</p>
+            <p className="mt-1 font-serif text-base leading-tight text-ink">
+              {clientInfo.eventName}
+            </p>
+            <p className="mt-0.5 text-xs text-ink-soft">
+              {[clientInfo.eventType, clientInfo.eventLocation?.split(",")[0]]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+            <Link
+              href="/process"
+              onClick={onClose}
+              className="mt-2.5 flex items-center gap-0.5 text-xs font-medium text-gold-dark transition-colors hover:text-gold"
+            >
+              View your journey
+              <ChevronRight className="size-3.5" />
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="eyebrow text-[10px]">Get started</p>
+            <p className="mt-1 font-serif text-base leading-tight text-ink">
+              No event yet
+            </p>
+            <p className="mt-0.5 text-xs text-ink-soft">
+              Book a consultation to begin planning.
+            </p>
+            <Link
+              href="/contact"
+              onClick={onClose}
+              className="mt-2.5 flex items-center gap-0.5 text-xs font-medium text-gold-dark transition-colors hover:text-gold"
+            >
+              Book a consultation
+              <ChevronRight className="size-3.5" />
+            </Link>
+          </>
+        )}
       </div>
 
       <nav className="flex-1 space-y-1 px-4 py-3" aria-label="Portal sections">

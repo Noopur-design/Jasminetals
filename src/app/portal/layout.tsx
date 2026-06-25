@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { PortalShell } from "@/components/portal/portal-shell";
 import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth";
-import { getClientAssignment } from "@/lib/store";
+import { getClientAssignment, isConsultationBooked } from "@/lib/store";
 
 export const metadata: Metadata = {
   title: {
@@ -29,12 +29,16 @@ export default async function PortalLayout({
       ? await getClientAssignment(session.email)
       : null;
 
+  // Until the client has actually booked a consultation, don't surface the
+  // auto-generated placeholder event details in the sidebar.
+  const booked = isConsultationBooked(assignment);
+
   const clientInfo = {
     name: assignment?.name ?? session.name ?? "Client",
     email: session.email ?? "",
-    eventName: assignment?.eventName ?? null,
-    eventType: assignment?.eventType ?? null,
-    eventLocation: assignment?.location ?? null,
+    eventName: booked ? assignment!.eventName : null,
+    eventType: booked ? assignment!.eventType : null,
+    eventLocation: booked ? assignment!.location : null,
   };
 
   return <PortalShell clientInfo={clientInfo}>{children}</PortalShell>;

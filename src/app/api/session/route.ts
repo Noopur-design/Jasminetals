@@ -76,6 +76,9 @@ export async function POST(request: NextRequest) {
         venue: "To be confirmed",
         location: "To be confirmed",
         assignedAt: new Date().toISOString(),
+        // Not a real booking yet — the portal shows a "book a consultation"
+        // prompt until an admin sets up the actual event for this client.
+        placeholder: true,
       };
       await setClientAssignment(starter);
       await setClientPortalData(seedClientPortalData(starter));

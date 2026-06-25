@@ -9,9 +9,11 @@ import {
   Users,
   Calendar,
   ArrowUpRight,
+  ArrowRight,
   TriangleAlert,
   MessagesSquare,
   CircleCheck,
+  Sparkles,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +37,7 @@ import {
   getClientAssignment,
   getClientPortalData,
   seedClientPortalData,
+  isConsultationBooked,
   listTasksForEvent,
   type ClientMilestone,
   type ClientPortalMessage,
@@ -58,6 +61,106 @@ export default async function OverviewPage() {
   ]);
 
   const clientName = assignment?.name ?? session?.name ?? "Aanya Mehra";
+
+  // ── Brand-new client who hasn't booked a consultation yet ──
+  // No real event has been set up for them, so don't show placeholder event
+  // details — invite them to book a consultation to get started.
+  if (isRealClient && !isConsultationBooked(assignment)) {
+    const firstName = clientName.split(" ")[0];
+    return (
+      <div className="space-y-8">
+        <Reveal as="section">
+          <Card className="overflow-hidden">
+            <div className="relative">
+              <Photo
+                seed="jasminetals-consultation"
+                aspect="21/9"
+                rounded="rounded-none"
+                priority
+                className="min-h-56 sm:min-h-64"
+              />
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink/75 via-ink/30 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8">
+                <Badge variant="gold" dot className="mb-3 bg-white/90 backdrop-blur-sm">
+                  Welcome
+                </Badge>
+                <h2 className="font-serif text-3xl font-medium leading-tight text-white sm:text-4xl">
+                  Welcome, {firstName}
+                </h2>
+                <p className="mt-1.5 max-w-md text-sm text-white/85">
+                  Your portal is ready. The next step is a consultation — once we&rsquo;ve
+                  spoken and shaped your event, it all comes to life here.
+                </p>
+              </div>
+            </div>
+          </Card>
+        </Reveal>
+
+        <Reveal as="section" delay={60}>
+          <Card>
+            <CardContent className="flex flex-col items-center gap-6 px-6 py-12 text-center sm:px-10">
+              <span className="flex size-14 items-center justify-center rounded-full bg-gold-soft text-gold-dark">
+                <Sparkles className="size-7" />
+              </span>
+              <div className="max-w-lg">
+                <h3 className="font-serif text-2xl font-medium text-ink">
+                  Let&rsquo;s start with a consultation
+                </h3>
+                <p className="mt-2 text-sm text-ink-soft">
+                  Tell us about your celebration and book a consultation with our team.
+                  Once the details are confirmed, your timeline, budget, mood board and
+                  documents will appear right here on your dashboard.
+                </p>
+              </div>
+              <div className="flex flex-col items-center gap-3 sm:flex-row">
+                <Button href="/contact" size="lg">
+                  Book a consultation <ArrowRight className="size-4" />
+                </Button>
+                <Button href="/portal/messages" variant="secondary" size="lg">
+                  Message your planner
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </Reveal>
+
+        <Reveal as="section" delay={120}>
+          <Card>
+            <CardContent className="p-6 sm:p-8">
+              <h3 className="font-serif text-lg font-medium text-ink">What to expect</h3>
+              <ol className="mt-5 grid gap-5 sm:grid-cols-3">
+                {[
+                  {
+                    icon: MessagesSquare,
+                    title: "1 · Book a consultation",
+                    body: "Share your vision, date and budget so we can prepare for our first conversation.",
+                  },
+                  {
+                    icon: CalendarClock,
+                    title: "2 · We set up your event",
+                    body: "After we speak, your planner confirms the details and builds your timeline.",
+                  },
+                  {
+                    icon: CircleCheck,
+                    title: "3 · Plan together here",
+                    body: "Track milestones, budget, documents and messages — all in one place.",
+                  },
+                ].map((step) => (
+                  <li key={step.title} className="flex flex-col gap-2">
+                    <span className="flex size-9 items-center justify-center rounded-full bg-gold-soft text-gold-dark">
+                      <step.icon className="size-[18px]" />
+                    </span>
+                    <p className="mt-1 text-sm font-medium text-ink">{step.title}</p>
+                    <p className="text-sm text-ink-soft">{step.body}</p>
+                  </li>
+                ))}
+              </ol>
+            </CardContent>
+          </Card>
+        </Reveal>
+      </div>
+    );
+  }
 
   // Milestones + budget: real client portal data, fallback to demo seed, then demo static
   const milestones: ClientMilestone[] = isRealClient

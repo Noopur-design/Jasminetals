@@ -126,10 +126,21 @@ export type ClientAssignment = {
   assignedTeam?: string[];  // teamMember ids
   assignedAt: string;  // ISO datetime when admin promoted
   portalStatus?: "booked" | "planning" | "this-week" | "completed";
+  // True for the starter assignment auto-created on sign-up, BEFORE the client has
+  // actually booked a consultation and an admin has set up their real event. The
+  // portal shows a "book a consultation" prompt (not placeholder event details)
+  // until this is cleared by an admin setting up the real booking.
+  placeholder?: boolean;
   // Optional admin-set password so a client can sign in at /login without Google
   // or email verification. Salted scrypt hash; never returned to the client.
   passwordHash?: string;
 };
+
+/** Whether the client has actually booked a consultation / had a real event set
+ *  up by an admin (vs. the auto-provisioned starter shown to brand-new sign-ups). */
+export function isConsultationBooked(a: ClientAssignment | null | undefined): boolean {
+  return !!a && a.placeholder !== true;
+}
 
 export async function listClientAssignments(): Promise<ClientAssignment[]> {
   return readCollection<ClientAssignment>("client-assignments", []);
