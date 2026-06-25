@@ -55,6 +55,9 @@ export function AuthForm({
   const [googleLoading, setGoogleLoading] = React.useState(false);
   const [error, setError] = React.useState("");
   const [resetSent, setResetSent] = React.useState(false);
+  // Studio-owner password sign-in (separate from Firebase client/team auth).
+  const [adminMode, setAdminMode] = React.useState(false);
+  const [adminPw, setAdminPw] = React.useState("");
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -94,6 +97,30 @@ export function AuthForm({
     }
   }
 
+  async function handleAdminSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: adminPw }),
+      });
+      const data = await res.json().catch(() => ({}) as { ok?: boolean; error?: string; redirectTo?: string });
+      if (!res.ok || !data.ok) {
+        setError(data.error || "Incorrect admin password.");
+        setLoading(false);
+        return;
+      }
+      // Cookie is set — hard-navigate so the new admin session is picked up.
+      window.location.href = data.redirectTo || "/internal";
+    } catch {
+      setError("Network error. Please try again.");
+      setLoading(false);
+    }
+  }
+
   async function handleReset() {
     setError("");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
@@ -109,6 +136,61 @@ export function AuthForm({
   }
 
   const isSignup = mode === "signup";
+
+  // ── Studio owner sign-in (password only) ──
+  if (adminMode) {
+    return (
+      <div>
+        <span className="eyebrow text-gold-dark">Studio</span>
+        <h2 className="mt-2 font-serif text-3xl text-ink">Studio admin</h2>
+        <p className="mt-2 text-sm text-ink-soft">
+          Enter the owner password to open the studio panel.
+        </p>
+
+        {error && (
+          <div role="alert" className="mt-6 mb-4 flex items-center gap-2 rounded-md border border-danger/25 bg-danger-soft px-3.5 py-2.5 text-sm text-danger">
+            <TriangleAlert className="size-4 shrink-0" />
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleAdminSubmit} className={error ? "flex flex-col gap-4" : "mt-6 flex flex-col gap-4"} noValidate>
+          <Field label="Admin password" htmlFor="af-admin-pw">
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-ink-muted" aria-hidden />
+              <Input
+                id="af-admin-pw"
+                type={showPw ? "text" : "password"}
+                autoComplete="current-password"
+                placeholder="••••••••"
+                className="px-10"
+                value={adminPw}
+                onChange={(e) => setAdminPw(e.target.value)}
+                autoFocus
+              />
+              <button type="button" onClick={() => setShowPw((s) => !s)} aria-label={showPw ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-ink-muted hover:text-ink">
+                {showPw ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
+          </Field>
+
+          <Button type="submit" size="lg" loading={loading} className="mt-1 w-full">
+            Enter studio panel
+          </Button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-ink-soft">
+          <button
+            type="button"
+            onClick={() => { setAdminMode(false); setError(""); setAdminPw(""); }}
+            className="font-medium text-gold-dark underline-offset-4 hover:underline"
+          >
+            ← Back to client &amp; team sign-in
+          </button>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -216,6 +298,18 @@ export function AuthForm({
           {isSignup ? "Sign in" : "Create an account"}
         </button>
       </p>
+
+      {!isSignup && (
+        <p className="mt-3 text-center text-xs text-ink-muted">
+          <button
+            type="button"
+            onClick={() => { setAdminMode(true); setError(""); setResetSent(false); }}
+            className="underline-offset-4 hover:underline"
+          >
+            Studio admin sign-in
+          </button>
+        </p>
+      )}
 
       {onClose && (
         <p className="mt-2 text-center text-xs text-ink-muted">
