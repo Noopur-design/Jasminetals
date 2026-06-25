@@ -111,12 +111,14 @@ export default async function ProcessPage() {
     ? milestones.filter((m) => m.status === "action-needed")
     : [];
 
+  // Server Component: rendered once per request, so reading "now" here is safe
+  // and intentional (days until the event, counted from the request time).
+  // eslint-disable-next-line react-hooks/purity
+  const nowMs = Date.now();
   const daysToEvent = isClient
     ? Math.max(
         0,
-        Math.ceil(
-          (new Date(event.date).getTime() - Date.now()) / (1000 * 60 * 60 * 24),
-        ),
+        Math.ceil((new Date(event.date).getTime() - nowMs) / (1000 * 60 * 60 * 24)),
       )
     : 0;
 

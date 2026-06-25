@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Search, Inbox, Plus, Pencil, Trash2, X, Mail, Phone, Loader2, ListChecks, Wallet, ClipboardList, CheckCircle2, Circle, AlertCircle, Clock3 } from "lucide-react";
+import { Search, Inbox, Plus, Pencil, Trash2, X, Mail, Phone, Loader2, ListChecks, Wallet, ClipboardList } from "lucide-react";
 import { UploadDocumentButton } from "@/components/internal/upload-document-button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";

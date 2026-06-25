@@ -35,7 +35,7 @@ export function Calendar({ events }: { events: InternalEvent[] }) {
       (map[e.date] ??= []).push(e);
     }
     return map;
-  }, []);
+  }, [events]);
 
   // Build the month grid (Mon-first).
   const first = new Date(year, month, 1);
